@@ -202,6 +202,8 @@ class UserDetailSerializer(serializers.ModelSerializer):
 
 
 class CategorySerializer(serializers.ModelSerializer):
+    is_active = serializers.BooleanField(default=True, required=False)
+
     class Meta:
         model = Category
         fields = (
@@ -209,10 +211,8 @@ class CategorySerializer(serializers.ModelSerializer):
             'name',
             'description',
             'is_active',
-            'created_at',
-            'updated_at',
         )
-        read_only_fields = ('id', 'created_at', 'updated_at')
+        read_only_fields = ('id',)
 
     def validate_name(self, value):
         name = value.strip()
@@ -224,5 +224,6 @@ class CategorySerializer(serializers.ModelSerializer):
         if qs.exists():
             raise serializers.ValidationError(f"Category with name '{name}' already exists.")
         return name
+
 
 

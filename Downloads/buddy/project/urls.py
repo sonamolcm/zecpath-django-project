@@ -39,24 +39,10 @@ from core.views import (
     ListenerDetailView,
     ListenerDeleteView,
     ListenerDeleteDirectView,
-    CategoryListCreateView,
-    CategoryDetailView,
 )
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-
-    # ==========================================
-    # CATEGORY CRUD ENDPOINTS (ALL VARIATIONS)
-    # ==========================================
-    path('api/categories/', CategoryListCreateView.as_view(), name='api-direct-categories'),
-    path('api/categories', CategoryListCreateView.as_view()),
-    path('categories/', CategoryListCreateView.as_view()),
-    path('categories', CategoryListCreateView.as_view()),
-    path('api/categories/<int:id>/', CategoryDetailView.as_view(), name='api-direct-category-detail'),
-    path('api/categories/<int:id>', CategoryDetailView.as_view()),
-    path('categories/<int:id>/', CategoryDetailView.as_view()),
-    path('categories/<int:id>', CategoryDetailView.as_view()),
 
     # ==========================================
     # CALLER CRUD ENDPOINTS

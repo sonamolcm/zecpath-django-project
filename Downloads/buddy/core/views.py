@@ -765,12 +765,13 @@ class InterestListView(APIView):
 class CategoryListCreateView(APIView):
     """
     GET /api/categories/
-    - Return all active categories.
-    - Authenticated users can access it.
+    - Return only categories where is_active=True.
+    - Authenticated users can access.
 
     POST /api/categories/
-    - ADMIN only.
-    - Create a category.
+    - Admin only.
+    - Set is_active=True automatically for newly created category.
+    - Handle duplicate names properly and return HTTP 400.
     """
     def get_permissions(self):
         if self.request.method == 'GET':
@@ -780,72 +781,49 @@ class CategoryListCreateView(APIView):
     def get(self, request):
         categories = Category.objects.filter(is_active=True).order_by('id')
         serializer = CategorySerializer(categories, many=True)
-        return Response({
-            "success": True,
-            "count": len(serializer.data),
-            "data": serializer.data
-        }, status=status.HTTP_200_OK)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request):
         serializer = CategorySerializer(data=request.data)
         if not serializer.is_valid():
-            return Response({
-                "success": False,
-                "message": "Validation failed.",
-                "errors": serializer.errors
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        category = serializer.save()
-        return Response({
-            "success": True,
-            "message": f"Category '{category.name}' created successfully.",
-            "data": CategorySerializer(category).data
-        }, status=status.HTTP_201_CREATED)
+        category = serializer.save(is_active=True)
+        return Response(CategorySerializer(category).data, status=status.HTTP_201_CREATED)
 
 
 class CategoryDetailView(APIView):
     """
     GET /api/categories/<id>/
-    - Return one active category.
-    - Authenticated users can access it.
+    - Return the category only if is_active=True.
+    - If it doesn't exist or is inactive, return HTTP 404.
+    - Authenticated users can access.
 
     PUT /api/categories/<id>/
-    - ADMIN only.
-    - Full update of a category.
-
     PATCH /api/categories/<id>/
-    - ADMIN only.
-    - Partial update of a category.
+    - Admin only.
+    - Allow updating name, description, is_active.
 
     DELETE /api/categories/<id>/
-    - ADMIN only.
-    - Do not permanently delete the database record.
-    - Set is_active=False.
+    - Admin only.
+    - Soft delete: category.is_active = False; category.save().
+    - Return a suitable success response.
     """
     def get_permissions(self):
         if self.request.method == 'GET':
             return [permissions.IsAuthenticated()]
         return [IsAdminUser()]
 
-    def _get_category(self, id, active_only=True):
-        qs = Category.objects.filter(pk=id)
-        if active_only:
-            qs = qs.filter(is_active=True)
-        return qs.first()
-
     def get(self, request, id):
-        category = self._get_category(id, active_only=True)
+        category = Category.objects.filter(pk=id, is_active=True).first()
         if not category:
-            return Response({
-                "success": False,
-                "message": f"Active category with ID {id} not found."
-            }, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"detail": "Category not found or is inactive."},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
         serializer = CategorySerializer(category)
-        return Response({
-            "success": True,
-            "data": serializer.data
-        }, status=status.HTTP_200_OK)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def put(self, request, id):
         return self._update(request, id, partial=False)
@@ -854,47 +832,34 @@ class CategoryDetailView(APIView):
         return self._update(request, id, partial=True)
 
     def _update(self, request, id, partial=True):
-        category = self._get_category(id, active_only=False)
+        category = Category.objects.filter(pk=id).first()
         if not category:
-            return Response({
-                "success": False,
-                "message": f"Category with ID {id} not found."
-            }, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"detail": "Category not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
         serializer = CategorySerializer(category, data=request.data, partial=partial)
         if not serializer.is_valid():
-            return Response({
-                "success": False,
-                "message": "Validation failed.",
-                "errors": serializer.errors
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         updated_category = serializer.save()
-        return Response({
-            "success": True,
-            "message": f"Category '{updated_category.name}' updated successfully.",
-            "data": CategorySerializer(updated_category).data
-        }, status=status.HTTP_200_OK)
+        return Response(CategorySerializer(updated_category).data, status=status.HTTP_200_OK)
 
     def delete(self, request, id):
-        category = self._get_category(id, active_only=False)
+        category = Category.objects.filter(pk=id).first()
         if not category:
-            return Response({
-                "success": False,
-                "message": f"Category with ID {id} not found."
-            }, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"detail": "Category not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
         category.is_active = False
         category.save(update_fields=['is_active', 'updated_at'])
-        return Response({
-            "success": True,
-            "message": f"Category '{category.name}' has been deactivated (soft-deleted).",
-            "data": {
-                "id": category.id,
-                "name": category.name,
-                "is_active": category.is_active
-            }
-        }, status=status.HTTP_200_OK)
+        return Response(
+            {"message": "Category deleted successfully."},
+            status=status.HTTP_200_OK
+        )
 
 
 CategoryListView = CategoryListCreateView
