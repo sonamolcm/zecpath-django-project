@@ -8,6 +8,7 @@ from .models import (
     CallerProfile,
     ListenerProfile,
     OTPVerification,
+    Category,
 )
 
 
@@ -81,3 +82,12 @@ class OTPVerificationAdmin(admin.ModelAdmin):
     list_display = ('phone_number', 'purpose', 'is_verified', 'attempts', 'expires_at', 'created_at')
     list_filter = ('purpose', 'is_verified')
     search_fields = ('phone_number',)
+
+
+
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ('id', 'name', 'is_active', 'created_at', 'updated_at')
+    list_filter = ('is_active',)
+    search_fields = ('name', 'description')
+    list_editable = ('is_active',)

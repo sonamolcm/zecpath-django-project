@@ -137,15 +137,16 @@ class OTPVerification(models.Model):
         return f"{self.phone_number} ({self.purpose}) - Verified: {self.is_verified}"
 
 
+
 # ==========================================
-# 2. PROFESSIONS
+# 2. CATEGORIES (PROFESSIONS FOR CALLERS)
 # ==========================================
-class Profession(models.Model):
+class Category(models.Model):
     name = models.CharField(max_length=100, unique=True)
-    icon = models.ImageField(upload_to='professions/', null=True, blank=True)
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.name
@@ -156,7 +157,13 @@ class Profession(models.Model):
 # ==========================================
 class BuddyProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='buddy_profile')
-    profession = models.ForeignKey(Profession, on_delete=models.SET_NULL, null=True, related_name='buddies')
+    profession = models.ForeignKey(
+        Category,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='buddies'
+    )
     bio = models.TextField(blank=True)
     languages = models.CharField(max_length=200, default='English', help_text="Comma-separated languages")
     rate_per_minute = models.PositiveIntegerField(default=5, help_text="Coins charged per minute of call")
@@ -167,7 +174,7 @@ class BuddyProfile(models.Model):
     is_verified = models.BooleanField(default=False)
 
     def __str__(self):
-        return f"Buddy: {self.user.username} - {self.profession.name if self.profession else 'No Profession'}"
+        return f"Buddy: {self.user.username} - {self.profession.name if self.profession else 'No Category'}"
 
 
 # ==========================================

@@ -33,12 +33,30 @@ from core.views import (
     AdminDeleteListenerView,
     CallerListCreateView,
     CallerDetailView,
+    CallerDeleteView,
+    CallerDeleteDirectView,
     ListenerListCreateView,
     ListenerDetailView,
+    ListenerDeleteView,
+    ListenerDeleteDirectView,
+    CategoryListCreateView,
+    CategoryDetailView,
 )
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+
+    # ==========================================
+    # CATEGORY CRUD ENDPOINTS (ALL VARIATIONS)
+    # ==========================================
+    path('api/categories/', CategoryListCreateView.as_view(), name='api-direct-categories'),
+    path('api/categories', CategoryListCreateView.as_view()),
+    path('categories/', CategoryListCreateView.as_view()),
+    path('categories', CategoryListCreateView.as_view()),
+    path('api/categories/<int:id>/', CategoryDetailView.as_view(), name='api-direct-category-detail'),
+    path('api/categories/<int:id>', CategoryDetailView.as_view()),
+    path('categories/<int:id>/', CategoryDetailView.as_view()),
+    path('categories/<int:id>', CategoryDetailView.as_view()),
 
     # ==========================================
     # CALLER CRUD ENDPOINTS
@@ -47,14 +65,18 @@ urlpatterns = [
     path('api/callers', CallerListCreateView.as_view()),
     path('callers/', CallerListCreateView.as_view()),
     path('callers', CallerListCreateView.as_view()),
+    path('api/callers/<int:user_id>/delete/', CallerDeleteView.as_view(), name='api-caller-delete'),
+    path('api/callers/<int:user_id>/delete', CallerDeleteView.as_view()),
+    path('callers/<int:user_id>/delete/', CallerDeleteView.as_view()),
+    path('callers/<int:user_id>/delete', CallerDeleteView.as_view()),
     path('api/callers/<str:identifier>/', CallerDetailView.as_view()),
     path('api/callers/<str:identifier>', CallerDetailView.as_view()),
     path('callers/<str:identifier>/', CallerDetailView.as_view()),
     path('callers/<str:identifier>', CallerDetailView.as_view()),
-    path('api/callers/<str:identifier>/delete/', CallerDetailView.as_view()),
-    path('api/callers/<str:identifier>/delete', CallerDetailView.as_view()),
-    path('callers/<str:identifier>/delete/', CallerDetailView.as_view()),
-    path('callers/<str:identifier>/delete', CallerDetailView.as_view()),
+    path('api/callers/<str:identifier>/delete/', CallerDeleteDirectView.as_view()),
+    path('api/callers/<str:identifier>/delete', CallerDeleteDirectView.as_view()),
+    path('callers/<str:identifier>/delete/', CallerDeleteDirectView.as_view()),
+    path('callers/<str:identifier>/delete', CallerDeleteDirectView.as_view()),
 
     # ==========================================
     # LISTENER CRUD ENDPOINTS (ALL VARIATIONS)
@@ -63,14 +85,18 @@ urlpatterns = [
     path('api/listeners', ListenerListCreateView.as_view()),
     path('listeners/', ListenerListCreateView.as_view()),
     path('listeners', ListenerListCreateView.as_view()),
+    path('api/listeners/<int:user_id>/delete/', ListenerDeleteView.as_view(), name='api-listener-delete'),
+    path('api/listeners/<int:user_id>/delete', ListenerDeleteView.as_view()),
+    path('listeners/<int:user_id>/delete/', ListenerDeleteView.as_view()),
+    path('listeners/<int:user_id>/delete', ListenerDeleteView.as_view()),
     path('api/listeners/<str:identifier>/', ListenerDetailView.as_view()),
     path('api/listeners/<str:identifier>', ListenerDetailView.as_view()),
     path('listeners/<str:identifier>/', ListenerDetailView.as_view()),
     path('listeners/<str:identifier>', ListenerDetailView.as_view()),
-    path('api/listeners/<str:identifier>/delete/', ListenerDetailView.as_view()),
-    path('api/listeners/<str:identifier>/delete', ListenerDetailView.as_view()),
-    path('listeners/<str:identifier>/delete/', ListenerDetailView.as_view()),
-    path('listeners/<str:identifier>/delete', ListenerDetailView.as_view()),
+    path('api/listeners/<str:identifier>/delete/', ListenerDeleteDirectView.as_view()),
+    path('api/listeners/<str:identifier>/delete', ListenerDeleteDirectView.as_view()),
+    path('listeners/<str:identifier>/delete/', ListenerDeleteDirectView.as_view()),
+    path('listeners/<str:identifier>/delete', ListenerDeleteDirectView.as_view()),
     path('api/listeners/create/', AdminCreateListenerView.as_view()),
     path('api/listeners/create', AdminCreateListenerView.as_view()),
     path('listeners/create/', AdminCreateListenerView.as_view()),

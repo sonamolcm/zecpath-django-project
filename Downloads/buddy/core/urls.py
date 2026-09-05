@@ -24,6 +24,8 @@ from .views import (  # type: ignore
     # Metadata Dropdowns
     LanguageListView,
     InterestListView,
+    CategoryListCreateView,
+    CategoryDetailView,
     # Web Simulator & Web Auth Compatibility Views
     WebSendOTPView,
     WebVerifyOTPView,
@@ -36,8 +38,12 @@ from .views import (  # type: ignore
     # Complete Caller & Listener CRUD
     CallerListCreateView,
     CallerDetailView,
+    CallerDeleteView,
+    CallerDeleteDirectView,
     ListenerListCreateView,
     ListenerDetailView,
+    ListenerDeleteView,
+    ListenerDeleteDirectView,
 )
 
 urlpatterns = [
@@ -105,10 +111,16 @@ urlpatterns = [
     path('caller/profile/delete', DeleteAccountView.as_view()),
 
     # ==========================================
-    # 6. METADATA DROPDOWNS (LANGUAGES & INTERESTS)
+    # 6. METADATA DROPDOWNS (LANGUAGES, INTERESTS & CATEGORIES)
     # ==========================================
     path('languages/', LanguageListView.as_view(), name='language-list'),
     path('interests/', InterestListView.as_view(), name='interest-list'),
+
+    path('categories/', CategoryListCreateView.as_view(), name='category-list-create'),
+    path('categories', CategoryListCreateView.as_view()),
+    path('categories/<int:id>/', CategoryDetailView.as_view(), name='category-detail'),
+    path('categories/<int:id>', CategoryDetailView.as_view()),
+
 
     # ==========================================
     # 7. ADMIN LISTENER MANAGEMENT API (LEGACY ALIASES)
@@ -125,22 +137,26 @@ urlpatterns = [
     # ==========================================
     path('callers/', CallerListCreateView.as_view(), name='caller-list-create'),
     path('callers', CallerListCreateView.as_view()),
+    path('callers/<int:user_id>/delete/', CallerDeleteView.as_view(), name='caller-delete'),
+    path('callers/<int:user_id>/delete', CallerDeleteView.as_view()),
     path('callers/<str:identifier>/', CallerDetailView.as_view(), name='caller-detail'),
     path('callers/<str:identifier>', CallerDetailView.as_view()),
-    path('callers/<str:identifier>/delete/', CallerDetailView.as_view(), name='caller-detail-delete'),
-    path('callers/<str:identifier>/delete', CallerDetailView.as_view()),
+    path('callers/<str:identifier>/delete/', CallerDeleteDirectView.as_view(), name='caller-detail-delete'),
+    path('callers/<str:identifier>/delete', CallerDeleteDirectView.as_view()),
 
     # ==========================================
     # 9. COMPLETE CRUD FOR LISTENERS
     # ==========================================
     path('listeners/', ListenerListCreateView.as_view(), name='listener-list-create'),
     path('listeners', ListenerListCreateView.as_view()),
+    path('listeners/<int:user_id>/delete/', ListenerDeleteView.as_view(), name='listener-delete'),
+    path('listeners/<int:user_id>/delete', ListenerDeleteView.as_view()),
     path('listeners/create/', ListenerListCreateView.as_view()),
     path('listeners/create', ListenerListCreateView.as_view()),
     path('listeners/delete/', ListenerListCreateView.as_view()),
     path('listeners/delete', ListenerListCreateView.as_view()),
     path('listeners/<str:identifier>/', ListenerDetailView.as_view(), name='listener-detail'),
     path('listeners/<str:identifier>', ListenerDetailView.as_view()),
-    path('listeners/<str:identifier>/delete/', ListenerDetailView.as_view(), name='listener-detail-delete'),
-    path('listeners/<str:identifier>/delete', ListenerDetailView.as_view()),
+    path('listeners/<str:identifier>/delete/', ListenerDeleteDirectView.as_view(), name='listener-detail-delete'),
+    path('listeners/<str:identifier>/delete', ListenerDeleteDirectView.as_view()),
 ]

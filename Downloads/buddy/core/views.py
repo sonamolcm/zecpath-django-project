@@ -17,7 +17,8 @@ from rest_framework.response import Response  # type: ignore
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError  # type: ignore
 
 # pyrefly: ignore [missing-import]
-from .models import User, CallerProfile, ListenerProfile, Interest, PhoneOTP  # type: ignore
+from .models import User, CallerProfile, ListenerProfile, Interest, PhoneOTP, Category  # type: ignore
+from .permissions import IsAdminUser  # type: ignore
 # pyrefly: ignore [missing-import]
 from .otp_service import (  # type: ignore
     create_and_send_otp,
@@ -36,7 +37,9 @@ from .serializers import (  # type: ignore
     CallerProfileSerializer,
     ListenerProfileSerializer,
     UserDetailSerializer,
+    CategorySerializer,
 )
+
 
 
 # ===================================================
@@ -754,6 +757,151 @@ class InterestListView(APIView):
         }, status=status.HTTP_200_OK)
 
 
+
+
+# ===================================================
+# 6.1 CATEGORIES API (FOR CALLER PROFESSIONS)
+# ===================================================
+class CategoryListCreateView(APIView):
+    """
+    GET /api/categories/
+    - Return all active categories.
+    - Authenticated users can access it.
+
+    POST /api/categories/
+    - ADMIN only.
+    - Create a category.
+    """
+    def get_permissions(self):
+        if self.request.method == 'GET':
+            return [permissions.IsAuthenticated()]
+        return [IsAdminUser()]
+
+    def get(self, request):
+        categories = Category.objects.filter(is_active=True).order_by('id')
+        serializer = CategorySerializer(categories, many=True)
+        return Response({
+            "success": True,
+            "count": len(serializer.data),
+            "data": serializer.data
+        }, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        serializer = CategorySerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                "success": False,
+                "message": "Validation failed.",
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        category = serializer.save()
+        return Response({
+            "success": True,
+            "message": f"Category '{category.name}' created successfully.",
+            "data": CategorySerializer(category).data
+        }, status=status.HTTP_201_CREATED)
+
+
+class CategoryDetailView(APIView):
+    """
+    GET /api/categories/<id>/
+    - Return one active category.
+    - Authenticated users can access it.
+
+    PUT /api/categories/<id>/
+    - ADMIN only.
+    - Full update of a category.
+
+    PATCH /api/categories/<id>/
+    - ADMIN only.
+    - Partial update of a category.
+
+    DELETE /api/categories/<id>/
+    - ADMIN only.
+    - Do not permanently delete the database record.
+    - Set is_active=False.
+    """
+    def get_permissions(self):
+        if self.request.method == 'GET':
+            return [permissions.IsAuthenticated()]
+        return [IsAdminUser()]
+
+    def _get_category(self, id, active_only=True):
+        qs = Category.objects.filter(pk=id)
+        if active_only:
+            qs = qs.filter(is_active=True)
+        return qs.first()
+
+    def get(self, request, id):
+        category = self._get_category(id, active_only=True)
+        if not category:
+            return Response({
+                "success": False,
+                "message": f"Active category with ID {id} not found."
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = CategorySerializer(category)
+        return Response({
+            "success": True,
+            "data": serializer.data
+        }, status=status.HTTP_200_OK)
+
+    def put(self, request, id):
+        return self._update(request, id, partial=False)
+
+    def patch(self, request, id):
+        return self._update(request, id, partial=True)
+
+    def _update(self, request, id, partial=True):
+        category = self._get_category(id, active_only=False)
+        if not category:
+            return Response({
+                "success": False,
+                "message": f"Category with ID {id} not found."
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = CategorySerializer(category, data=request.data, partial=partial)
+        if not serializer.is_valid():
+            return Response({
+                "success": False,
+                "message": "Validation failed.",
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        updated_category = serializer.save()
+        return Response({
+            "success": True,
+            "message": f"Category '{updated_category.name}' updated successfully.",
+            "data": CategorySerializer(updated_category).data
+        }, status=status.HTTP_200_OK)
+
+    def delete(self, request, id):
+        category = self._get_category(id, active_only=False)
+        if not category:
+            return Response({
+                "success": False,
+                "message": f"Category with ID {id} not found."
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        category.is_active = False
+        category.save(update_fields=['is_active', 'updated_at'])
+        return Response({
+            "success": True,
+            "message": f"Category '{category.name}' has been deactivated (soft-deleted).",
+            "data": {
+                "id": category.id,
+                "name": category.name,
+                "is_active": category.is_active
+            }
+        }, status=status.HTTP_200_OK)
+
+
+CategoryListView = CategoryListCreateView
+
+
+
+
 # ===================================================
 # 7. WEB COMPATIBILITY AUTH VIEWS
 # ===================================================
@@ -1236,17 +1384,27 @@ class CallerDetailView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def _get_caller(self, identifier):
-        if str(identifier).isdigit():
-            user = User.objects.filter(id=int(identifier), role__in=['CALLER', 'USER']).first()
+        if not identifier:
+            return None
+        ident_str = str(identifier).strip()
+        if ident_str.isdigit():
+            user = User.objects.filter(id=int(ident_str)).first()
             if user:
                 return user
-        return User.objects.filter(phone_number=str(identifier), role__in=['CALLER', 'USER']).first() or \
-               User.objects.filter(username=str(identifier), role__in=['CALLER', 'USER']).first()
+        user = User.objects.filter(phone_number=ident_str).first()
+        if not user:
+            user = User.objects.filter(username__iexact=ident_str).first()
+        return user
 
     def get(self, request, identifier):
         user = self._get_caller(identifier)
         if not user:
-            return Response({"success": False, "message": "Caller not found."}, status=status.HTTP_404_NOT_FOUND)
+            available = list(User.objects.values('id', 'username', 'role', 'phone_number')[:15])
+            return Response({
+                "success": False,
+                "message": f"Caller '{identifier}' not found.",
+                "existing_users": available
+            }, status=status.HTTP_404_NOT_FOUND)
 
         cp, _ = CallerProfile.objects.get_or_create(user=user, defaults={'name': user.first_name or user.username})
         return Response({
@@ -1320,21 +1478,240 @@ class CallerDetailView(APIView):
             }
         }, status=status.HTTP_200_OK)
 
-    def delete(self, request, identifier):
-        user = self._get_caller(identifier)
+    def delete(self, request, identifier=None):
+        ident = identifier or request.data.get('phone_number') or request.data.get('id') or request.query_params.get('phone_number') or request.query_params.get('id')
+        user = self._get_caller(ident)
         if not user:
-            return Response({"success": False, "message": "Caller not found."}, status=status.HTTP_404_NOT_FOUND)
+            available = list(User.objects.values('id', 'username', 'role', 'phone_number')[:15])
+            return Response({
+                "success": False,
+                "message": f"Caller '{ident}' not found in database.",
+                "existing_users": available
+            }, status=status.HTTP_404_NOT_FOUND)
 
         user_id = user.id
-        phone = user.phone_number
+        phone = user.phone_number or user.username
         user.delete()
         return Response({
             "success": True,
             "message": f"Caller '{phone}' (ID: {user_id}) and profile deleted successfully."
         }, status=status.HTTP_200_OK)
 
-    def post(self, request, identifier):
+    def post(self, request, identifier=None):
         return self.delete(request, identifier)
+
+
+class CallerDeleteView(APIView):
+    """
+    DELETE /api/callers/<int:user_id>/delete/
+    Deletes (deactivates) a caller account by user_id.
+    - Sets user.is_active = False (soft delete)
+    - Sets user.caller_profile.is_online = False
+    - If ?permanent=true, permanently deletes user
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def delete(self, request, user_id):
+        user = User.objects.filter(id=user_id).first()
+        if not user:
+            return Response({
+                "success": False,
+                "message": "Caller not found."
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        if user.role not in ('CALLER', 'USER'):
+            return Response({
+                "success": False,
+                "message": "User is not a caller."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Permanent deletion if requested
+        permanent = (
+            request.query_params.get('permanent', '').lower() in ('true', '1') or
+            (isinstance(request.data, dict) and request.data.get('permanent') is True)
+        )
+        if permanent:
+            user.delete()
+            return Response({
+                "success": True,
+                "message": "Caller deleted successfully."
+            }, status=status.HTTP_200_OK)
+
+        # Deactivate caller (soft delete)
+        user.is_active = False
+        user.save(update_fields=['is_active'])
+
+        if hasattr(user, 'caller_profile') and user.caller_profile:
+            user.caller_profile.is_online = False
+            user.caller_profile.save(update_fields=['is_online'])
+
+        return Response({
+            "success": True,
+            "message": "Caller deleted successfully."
+        }, status=status.HTTP_200_OK)
+
+    def post(self, request, user_id):
+        return self.delete(request, user_id)
+
+
+class ListenerDeleteView(APIView):
+    """
+    DELETE /api/listeners/<int:user_id>/delete/
+    DELETE /api/listeners/<str:identifier>/delete/
+    Deletes (deactivates) a listener account by user_id or username.
+    - Sets user.is_active = False (soft delete)
+    - Sets listener_profile.is_available = False
+    - If ?permanent=true, permanently deletes user
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def delete(self, request, user_id=None, identifier=None):
+        target = user_id or identifier or request.data.get('username') or request.data.get('id')
+        if not target:
+            return Response({
+                "success": False,
+                "message": "Listener identifier is required."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        ident_str = str(target).strip()
+        user = None
+        if ident_str.isdigit():
+            user = User.objects.filter(id=int(ident_str)).first()
+        if not user:
+            user = User.objects.filter(username__iexact=ident_str).first()
+        if not user:
+            prof = ListenerProfile.objects.filter(listener_id__iexact=ident_str).first()
+            if prof:
+                user = prof.user
+
+        if not user:
+            return Response({
+                "success": False,
+                "message": "Listener not found."
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        if user.role not in ('LISTENER', 'BUDDY') and not hasattr(user, 'listener_profile'):
+            return Response({
+                "success": False,
+                "message": "User is not a listener."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Permanent deletion if requested
+        permanent = (
+            request.query_params.get('permanent', '').lower() in ('true', '1') or
+            (isinstance(request.data, dict) and request.data.get('permanent') is True)
+        )
+        if permanent:
+            user.delete()
+            return Response({
+                "success": True,
+                "message": "Listener deleted successfully."
+            }, status=status.HTTP_200_OK)
+
+        # Deactivate listener (soft delete)
+        user.is_active = False
+        user.save(update_fields=['is_active'])
+
+        if hasattr(user, 'listener_profile') and user.listener_profile:
+            user.listener_profile.is_available = False
+            user.listener_profile.save(update_fields=['is_available'])
+
+        return Response({
+            "success": True,
+            "message": "Listener deleted successfully."
+        }, status=status.HTTP_200_OK)
+
+    def post(self, request, user_id=None, identifier=None):
+        return self.delete(request, user_id, identifier)
+
+
+class CallerDeleteDirectView(APIView):
+    """
+    Dedicated endpoint to delete a caller by ID or Phone:
+    Handles GET (direct browser click/URL visit), POST, and DELETE!
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def _do_delete(self, request, identifier):
+        ident_str = str(identifier).strip()
+        user = None
+        if ident_str.isdigit():
+            user = User.objects.filter(id=int(ident_str)).first()
+        if not user:
+            user = User.objects.filter(phone_number=ident_str).first()
+        if not user:
+            user = User.objects.filter(username__iexact=ident_str).first()
+
+        if not user:
+            available = list(User.objects.values('id', 'username', 'role', 'phone_number')[:15])
+            return Response({
+                "success": False,
+                "message": f"User/Caller '{identifier}' not found in database.",
+                "existing_users": available
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        target_id = user.id
+        target_name = user.username or user.phone_number
+        user.delete()
+        return Response({
+            "success": True,
+            "message": f"Caller '{target_name}' (ID: {target_id}) and all associated profile data deleted successfully."
+        }, status=status.HTTP_200_OK)
+
+    def get(self, request, identifier):
+        return self._do_delete(request, identifier)
+
+    def post(self, request, identifier):
+        return self._do_delete(request, identifier)
+
+    def delete(self, request, identifier):
+        return self._do_delete(request, identifier)
+
+
+class ListenerDeleteDirectView(APIView):
+    """
+    Dedicated endpoint to delete a listener by ID or Username:
+    Handles GET (direct browser click/URL visit), POST, and DELETE!
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def _do_delete(self, request, identifier):
+        ident_str = str(identifier).strip()
+        user = None
+        if ident_str.isdigit():
+            user = User.objects.filter(id=int(ident_str)).first()
+        if not user:
+            user = User.objects.filter(username__iexact=ident_str).first()
+        if not user:
+            prof = ListenerProfile.objects.filter(listener_id__iexact=ident_str).first()
+            if prof:
+                user = prof.user
+
+        if not user:
+            available = list(User.objects.values('id', 'username', 'role')[:15])
+            return Response({
+                "success": False,
+                "message": f"Listener '{identifier}' not found in database.",
+                "existing_users": available
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        target_id = user.id
+        target_name = user.username
+        user.delete()
+        return Response({
+            "success": True,
+            "message": f"Listener '{target_name}' (ID: {target_id}) and all associated profile data deleted successfully."
+        }, status=status.HTTP_200_OK)
+
+    def get(self, request, identifier):
+        return self._do_delete(request, identifier)
+
+    def post(self, request, identifier):
+        return self._do_delete(request, identifier)
+
+    def delete(self, request, identifier):
+        return self._do_delete(request, identifier)
+
 
 
 # ===================================================

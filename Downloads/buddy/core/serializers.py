@@ -6,6 +6,7 @@ from .models import (
     CallerProfile,
     ListenerProfile,
     OTPVerification,
+    Category,
 )
 
 
@@ -197,3 +198,31 @@ class UserDetailSerializer(serializers.ModelSerializer):
             'is_active',
             'created_at',
         )
+
+
+
+class CategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Category
+        fields = (
+            'id',
+            'name',
+            'description',
+            'is_active',
+            'created_at',
+            'updated_at',
+        )
+        read_only_fields = ('id', 'created_at', 'updated_at')
+
+    def validate_name(self, value):
+        name = value.strip()
+        if not name:
+            raise serializers.ValidationError("Category name is required.")
+        qs = Category.objects.filter(name__iexact=name)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError(f"Category with name '{name}' already exists.")
+        return name
+
+
